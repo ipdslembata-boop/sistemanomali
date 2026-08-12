@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoring Anomali - BPS</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-[#dbeafe] text-slate-800 antialiased min-h-screen p-4 flex flex-col justify-center items-center">
+
+    <!-- Container Utama Sesuai Sketsa UI -->
+    <div class="w-full max-w-7xl bg-[#eff6ff] border-2 border-white rounded-3xl shadow-xl p-6 flex flex-col gap-6 relative">
+
+        <!-- HEADER SECTION -->
+        <header class="bg-[#bfdbfe] border-2 border-white rounded-2xl p-4 flex flex-wrap justify-between items-center shadow-sm gap-4">
+            <!-- Logo / Identitas -->
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-1">
+                    <span class="w-6 h-6 bg-blue-600 rounded-sm inline-block"></span>
+                    <span class="w-6 h-6 bg-emerald-500 rounded-sm inline-block"></span>
+                </div>
+                <span class="text-xs font-bold tracking-wider text-slate-700">SENSUS EKONOMI 2026</span>
+            </div>
+
+            <!-- Judul Utama -->
+            <h1 class="text-xl font-bold text-slate-700 tracking-wide">Monitoring Anomali</h1>
+
+            <!-- Menu Kategori & Waktu Update -->
+            <div class="flex flex-col items-end gap-2">
+                <div id="lastUpdate" class="text-[10px] bg-white/80 border border-slate-200 px-3 py-1 rounded-full text-slate-500 shadow-xs">
+                    ket. waktu update terakhir
+                </div>
+                <!-- Menu Kategori Gsheet (Sesuai Sketsa: Umum, Nilai Tambah, Sosek, Neraca) -->
+                <nav class="flex flex-wrap gap-3 text-xs font-semibold text-blue-900">
+                    <button onclick="switchCategory('all')" id="btn-cat-all" class="cat-btn hover:underline cursor-pointer">Semua</button>
+                    <button onclick="switchCategory('umum')" id="btn-cat-umum" class="cat-btn hover:underline cursor-pointer">Umum</button>
+                    <button onclick="switchCategory('neraca')" id="btn-cat-neraca" class="cat-btn hover:underline cursor-pointer">Neraca</button>
+                    <button onclick="switchCategory('sosial_ekonomi')" id="btn-cat-sosial_ekonomi" class="cat-btn hover:underline cursor-pointer">Sosek</button>
+                    <!-- Tambahan mapping kategori gsheet Anda -->
+                </nav>
+            </div>
+        </header>
+
+        <!-- LAYOUT UTAMA (GRID 2 KOLOM: KIRI SIDEBAR, KANAN KONTEN UTAMA) -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+            <!-- KOLOM KIRI: FILTER & KARTU KPI -->
+            <aside class="lg:col-span-1 flex flex-col gap-4">
+                
+                <!-- Box Filter -->
+                <div class="bg-[#bfdbfe] border-2 border-white rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+                    <div class="text-xs font-bold text-slate-700 text-center mb-1">Filter</div>
+                    <select id="filterKecamatan" onchange="applyFilters()" class="text-xs bg-white border border-slate-300 rounded-xl p-2.5 outline-none shadow-xs">
+                        <option value="">(dropdown) Kecamatan</option>
+                    </select>
+                    <select id="filterDesa" onchange="applyFilters()" class="text-xs bg-white border border-slate-300 rounded-xl p-2.5 outline-none shadow-xs">
+                        <option value="">(dropdown) Desa</option>
+                    </select>
+                    <select id="filterKorwil" onchange="applyFilters()" class="text-xs bg-white border border-slate-300 rounded-xl p-2.5 outline-none shadow-xs">
+                        <option value="">(dropdown) Korwil</option>
+                    </select>
+                    <select id="filterPml" onchange="applyFilters()" class="text-xs bg-white border border-slate-300 rounded-xl p-2.5 outline-none shadow-xs">
+                        <option value="">(dropdown) PML</option>
+                    </select>
+                    <select id="filterPpl" onchange="applyFilters()" class="text-xs bg-white border border-slate-300 rounded-xl p-2.5 outline-none shadow-xs">
+                        <option value="">(dropdown) PPL</option>
+                    </select>
+                    <input type="text" id="globalSearch" oninput="applyFilters()" placeholder="Global Search..." class="text-xs bg-white border border-slate-300 rounded-xl p-2.5 outline-none shadow-xs">
+                </div>
+
+                <!-- Box KPI 1: Total Anomali -->
+                <div class="bg-[#bfdbfe] border-2 border-white rounded-2xl p-4 text-center shadow-sm">
+                    <div class="text-xs font-semibold text-slate-700">Total anomali</div>
+                    <div id="kpiTotal" class="text-2xl font-bold text-blue-900 mt-1">0</div>
+                </div>
+
+                <!-- Box KPI 2: Jumlah anomali yang sudah ditindak -->
+                <div class="bg-[#bfdbfe] border-2 border-white rounded-2xl p-4 text-center shadow-sm">
+                    <div class="text-xs font-semibold text-slate-700">Jumlah anomali yang sudah ditindak</div>
+                    <div id="kpiResolved" class="text-2xl font-bold text-emerald-700 mt-1">0</div>
+                </div>
+
+                <!-- Box KPI 3: Jumlah anomali yang tersisa -->
+                <div class="bg-[#bfdbfe] border-2 border-white rounded-2xl p-4 text-center shadow-sm">
+                    <div class="text-xs font-semibold text-slate-700">Jumlah anomali yang tersisa</div>
+                    <div id="kpiOpen" class="text-2xl font-bold text-amber-700 mt-1">0</div>
+                </div>
+
+                <!-- Box Penjelasan Nama Anomali (Sesuai Sketsa) -->
+                <div class="bg-[#bfdbfe] border-2 border-white rounded-2xl p-4 shadow-sm text-center">
+                    <div class="text-xs font-semibold text-slate-700 mb-2">Penjelasan nama anomali</div>
+                    <div id="anomaliListContainer" class="text-[11px] text-slate-600 bg-white/60 p-2 rounded-xl max-h-32 overflow-y-auto space-y-1">
+                        <div>A1K08</div>
+                        <div>A2K08</div>
+                        <div class="text-slate-400 italic">dst... (Klik badge anomali di tabel untuk detail)</div>
+                    </div>
+                </div>
+
+            </aside>
+
+            <!-- KOLOM KANAN: STATISTIK GRAFIK & TABEL -->
+            <main class="lg:col-span-3 flex flex-col gap-6">
+
+                <!-- Main Wrapper Grafik & Tabel (Warna Hijau Gradasi Lembut sesuai sketsa) -->
+                <div class="bg-gradient-to-br from-[#d1fae5] via-[#a7f3d0] to-[#bfdbfe] border-2 border-white rounded-3xl p-6 shadow-sm flex flex-col gap-6">
+                    
+                    <h2 class="text-center font-bold text-slate-700 text-sm tracking-wide">Statistik anomali</h2>
+
+                    <!-- Bagian Grafik (2 Chart Side-by-Side) -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Chart 1 -->
+                        <div class="bg-white/80 border border-white rounded-2xl p-4 shadow-xs flex flex-col items-center">
+                            <span class="text-[11px] font-semibold text-slate-600 mb-2">Jumlah anomali terbanyak</span>
+                            <div class="w-full h-48"><canvas id="chartKategori"></canvas></div>
+                        </div>
+                        <!-- Chart 2 -->
+                        <div class="bg-white/80 border border-white rounded-2xl p-4 shadow-xs flex flex-col items-center">
+                            <span class="text-[11px] font-semibold text-slate-600 mb-2">anomali per kecamatan</span>
+                            <div class="w-full h-48"><canvas id="chartWilayah"></canvas></div>
+                        </div>
+                    </div>
+
+                    <!-- Bagian Tabel Anomali -->
+                    <div class="bg-white/90 border border-white rounded-2xl shadow-xs overflow-hidden flex flex-col">
+                        <div class="bg-[#93c5fd] text-white text-xs font-bold py-2.5 px-4 text-center tracking-wider">
+                            Tabel anomali
+                        </div>
+                        <div class="p-3 flex justify-end">
+                            <button onclick="exportToCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-medium px-3 py-1.5 rounded-lg transition-colors shadow-xs">
+                                Unduh Laporan Excel/PDF (CSV)
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto max-h-96">
+                            <table class="w-full text-left text-xs text-slate-700">
+                                <thead id="tableHeader" class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                                    <tr>
+                                        <th class="p-3 text-center w-14">Ceklis</th>
+                                        <th class="p-3">Anomali</th>
+                                        <th class="p-3">Informasi Data Lapangan</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tableBody" class="divide-y divide-slate-200">
+                                    <tr><td colspan="3" class="p-4 text-center text-slate-400">Memuat data dari Google Apps Script...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+
+            </main>
+
+        </div>
+    </div>
+
+    <!-- Modal Panduan / Deskripsi Anomali -->
+    <div id="descModal" class="fixed inset-0 bg-black/40 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-100">
+            <h3 id="modalTitle" class="text-sm font-bold text-slate-800 border-b pb-2">Detail Anomali</h3>
+            <div class="space-y-2 text-xs text-slate-600">
+                <p><strong>Deskripsi Singkat:</strong> <span id="modalDesc">-</span></p>
+                <p><strong>Penjelasan Detail:</strong> <span id="modalDetail">-</span></p>
+                <p class="text-blue-800 bg-blue-50 p-3 rounded-xl border border-blue-100"><strong>Solusi Perbaikan:</strong> <span id="modalSolusi">-</span></p>
+            </div>
+            <div class="flex justify-end pt-2">
+                <button onclick="closeModal()" class="bg-slate-800 text-white text-xs px-4 py-2 rounded-xl font-medium shadow-xs hover:bg-slate-900">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Logika & Integrasi GAS -->
+    <script>
+        // Masukkan URL Web App Google Apps Script Anda di sini (berakhiran /exec)
+        const WEB_APP_URL = 'PASTE_URL_WEB_APP_ANDA_DISINI';
+        
+        let globalData = null;
+        let currentCategory = 'all';
+        let katChartInstance = null;
+        let wilChartInstance = null;
+
+        async function fetchData() {
+            if (WEB_APP_URL.includes('PASTE_URL')) {
+                document.getElementById('lastUpdate').innerHTML = '<span class="text-amber-600 font-semibold">⚠️ URL Web App belum diset di kodingan!</span>';
+                return;
+            }
+            try {
+                const res = await fetch(WEB_APP_URL);
+                if (!res.ok) throw new Error('Gagal mengambil data server');
+                globalData = await res.json();
+                
+                populateFilters();
+                applyFilters();
+                document.getElementById('lastUpdate').innerText = 'Update terakhir: ' + new Date().toLocaleTimeString('id-ID');
+            } catch (err) {
+                console.error(err);
+                document.getElementById('lastUpdate').innerHTML = '<span class="text-red-500 font-semibold">Gagal memuat data server</span>';
+            }
+        }
+
+        function switchCategory(cat) {
+            currentCategory = cat;
+            document.querySelectorAll('.cat-btn').forEach(btn => {
+                btn.style.fontWeight = 'normal';
+            });
+            document.getElementById('btn-cat-' + cat).style.fontWeight = 'bold';
+            applyFilters();
+        }
+
+        function populateFilters() {
+            if (!globalData || !globalData.master) return;
+            const wilayahs = globalData.master.mapping_wilayah || [];
+
+            const kecs = [...new Set(wilayahs.map(w => w.kecamatan))].filter(Boolean);
+            const desas = [...new Set(wilayahs.map(w => w.desa))].filter(Boolean);
+            const korwils = [...new Set(wilayahs.map(w => w.korwil))].filter(Boolean);
+            const pmls = [...new Set(wilayahs.map(w => w.pml))].filter(Boolean);
+            const ppls = [...new Set(wilayahs.map(w => w.ppl))].filter(Boolean);
+
+            fillSelect('filterKecamatan', kecs, 'Kecamatan');
+            fillSelect('filterDesa', desas, 'Desa');
+            fillSelect('filterKorwil', korwils, 'Korwil');
+            fillSelect('filterPml', pmls, 'PML');
+            fillSelect('filterPpl', ppls, 'PPL');
+        }
+
+        function fillSelect(id, items, label) {
+            const el = document.getElementById(id);
+            const current = el.value;
+            el.innerHTML = `<option value="">(dropdown) ${label}</option>`;
+            items.forEach(i => {
+                el.innerHTML += `<option value="${i}">${i}</option>`;
+            });
+            el.value = current;
+        }
+
+        function applyFilters() {
+            if (!globalData || !globalData.anomali) return;
+
+            let data = globalData.anomali;
+
+            if (currentCategory !== 'all') {
+                data = data.filter(d => d.fileKey === currentCategory);
+            }
+
+            const kec = document.getElementById('filterKecamatan').value;
+            const desa = document.getElementById('filterDesa').value;
+            const korwil = document.getElementById('filterKorwil').value;
+            const pml = document.getElementById('filterPml').value;
+            const ppl = document.getElementById('filterPpl').value;
+            const search = document.getElementById('globalSearch').value.toLowerCase();
+
+            data = data.filter(row => {
+                const rowPpl = String(row.petugas || row.ppl || '').trim();
+                const matchedWil = (globalData.master.mapping_wilayah || []).find(w => 
+                    String(w.ppl || '').trim().toLowerCase() === rowPpl.toLowerCase()
+                );
+
+                if (kec && (!matchedWil || matchedWil.kecamatan !== kec)) return false;
+                if (desa && (!matchedWil || matchedWil.desa !== desa)) return false;
+                if (korwil && (!matchedWil || matchedWil.korwil !== korwil)) return false;
+                if (pml && (!matchedWil || matchedWil.pml !== pml)) return false;
+                if (ppl && rowPpl.toLowerCase() !== ppl.toLowerCase()) return false;
+
+                if (search) {
+                    const matchText = Object.values(row).some(val => String(val).toLowerCase().includes(search));
+                    if (!matchText) return false;
+                }
+                return true;
+            });
+
+            renderKPI(data);
+            renderCharts(data);
+            renderTable(data);
+        }
+
+        function renderKPI(data) {
+            const total = data.length;
+            const resolved = data.filter(d => d.isCompleted).length;
+            const open = total - resolved;
+
+            document.getElementById('kpiTotal').textContent = total;
+            document.getElementById('kpiResolved').textContent = resolved;
+            document.getElementById('kpiOpen').textContent = open;
+        }
+
+        function renderCharts(data) {
+            const catCount = {};
+            const wilCount = {};
+
+            data.forEach(d => {
+                const sheet = d.sheetName || 'Lainnya';
+                catCount[sheet] = (catCount[sheet] || 0) + 1;
+
+                const rowPpl = String(d.petugas || d.ppl || '').trim();
+                const matchedWil = (globalData.master.mapping_wilayah || []).find(w => 
+                    String(w.ppl || '').trim().toLowerCase() === rowPpl.toLowerCase()
+                );
+                const wil = matchedWil ? matchedWil.kecamatan : 'Tidak Diketahui';
+                wilCount[wil] = (wilCount[wil] || 0) + 1;
+            });
+
+            if (katChartInstance) katChartInstance.destroy();
+            katChartInstance = new Chart(document.getElementById('chartKategori'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(catCount),
+                    datasets: [{ label: 'Jumlah', data: Object.values(catCount), backgroundColor: '#3b82f6' }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+
+            if (wilChartInstance) wilChartInstance.destroy();
+            wilChartInstance = new Chart(document.getElementById('chartWilayah'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(wilCount),
+                    datasets: [{ label: 'Anomali', data: Object.values(wilCount), backgroundColor: '#10b981' }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            if (data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-slate-400">Tidak ada data anomali ditemukan.</td></tr>`;
+                return;
+            }
+
+            data.forEach(row => {
+                const katInfo = (globalData.master.kategori_anomali || {})[row.sheetName] || {};
+                const badgeColor = row.isCompleted ? '#10b981' : (katInfo.warna_badge || '#3b82f6');
+                const badgeText = katInfo.tingkat_keparahan || row.sheetName;
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition-colors';
+
+                let detailHtml = `<div class="flex flex-wrap gap-x-4 gap-y-1 text-slate-600">`;
+                for (let key in row) {
+                    if (['filekey', 'sheetname', 'rowindex', 'iscompleted', 'nama_anomali'].includes(key)) continue;
+                    detailHtml += `<span><strong>${key.replace(/_/g, ' ')}:</strong> ${row[key]}</span>`;
+                }
+                detailHtml += `</div>`;
+
+                tr.innerHTML = `
+                    <td class="p-3 text-center">
+                        <input type="checkbox" ${row.isCompleted ? 'checked' : ''} onchange="updateStatus(this, '${row.fileKey}', '${row.sheetName}', ${row.rowIndex})" class="w-4 h-4 rounded text-emerald-600 cursor-pointer">
+                    </td>
+                    <td class="p-3 font-semibold">
+                        <button onclick="showDesc('${row.sheetName}')" class="px-2.5 py-1 rounded-lg text-white text-[11px] shadow-xs hover:opacity-90" style="background-color: ${badgeColor};">
+                            ${badgeText} (${row.sheetName})
+                        </button>
+                    </td>
+                    <td class="p-3">${detailHtml}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function updateStatus(checkbox, fileKey, sheetName, rowIndex) {
+            const statusValue = checkbox.checked;
+            try {
+                const res = await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ fileKey, sheetName, rowIndex, statusValue })
+                });
+                const result = await res.json();
+                if(result.status === 'success') {
+                    fetchData();
+                } else {
+                    alert('Gagal memperbarui status');
+                    checkbox.checked = !statusValue;
+                }
+            } catch(err) {
+                console.error(err);
+                alert('Terjadi kesalahan koneksi');
+                checkbox.checked = !statusValue;
+            }
+        }
+
+        function showDesc(sheetName) {
+            const descData = (globalData.master.deskripsi_anomali || {})[sheetName];
+            if (!descData) {
+                alert("Deskripsi untuk " + sheetName + " belum diatur di sheet deskripsi_anomali master database.");
+                return;
+            }
+            document.getElementById('modalTitle').innerText = 'Panduan Anomali: ' + sheetName;
+            document.getElementById('modalDesc').innerText = descData.deskripsi_singkat || '-';
+            document.getElementById('modalDetail').innerText = descData.penjelasan_detail || '-';
+            document.getElementById('modalSolusi').innerText = descData.solusi_perbaikan || '-';
+            document.getElementById('descModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('descModal').classList.add('hidden');
+        }
+
+        function exportToCSV() {
+            if (!globalData || !globalData.anomali.length) return alert('Tidak ada data untuk diexport');
+            let csv = 'Kategori,Sheet,Petugas,Status Ceklis\n';
+            globalData.anomali.forEach(d => {
+                csv += `"${d.fileKey}","${d.sheetName}","${d.petugas || d.ppl || ''}","${d.isCompleted ? 'Selesai' : 'Belum'}"\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'laporan_anomali.csv';
+            a.click();
+        }
+
+        // Jalankan saat halaman dimuat
+        fetchData();
+        // Auto refresh setiap 5 menit
+        setInterval(fetchData, 300000);
+    </script>
+</body>
+</html>
